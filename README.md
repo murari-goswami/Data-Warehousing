@@ -2,7 +2,7 @@
 
 Get Summarized and aggregated Visits Information in Table – across four major dimension
 
-#### Problem Statement: - Raw data are available for visitors Click stream Data in the Fact table named VISITS.
+#### Problem Statement: - ##### Raw data are available for visitors Click stream Data in the Fact table named VISITS.
 
 CONNECT_AWS_STORAGE schema. A master COUNTRY table in COMMON schema holds the look up information on county details. The requirement is to populate the appropriate non duplicate data in the dimension tables viz. – DOMAIN table in BASE schema, DEVICE_TYPE and OPERATING_SYSTEM table in COMMON schema and at the end create a summarized tables from VISITS across 4 dimesnions.
 
