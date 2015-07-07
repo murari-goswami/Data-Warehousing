@@ -1,4 +1,4 @@
-# Applicata – Case Study Solution (Detail Level Design)
+## Applicata – Case Study Solution (Detail Level Design)
 
 Get Summarized and aggregated Visits Information in Table – across four major dimension
 
