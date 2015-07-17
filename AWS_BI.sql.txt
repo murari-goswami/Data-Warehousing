@@ -1,0 +1,175 @@
+-- Function: connect_aws_storage.dim_common_device_type_upd(text)
+
+
+-- DROP FUNCTION connect_aws_storage.dim_common_device_type_upd(text);
+
+
+
+CREATE OR REPLACE FUNCTION connect_aws_storage.dim_common_device_type_upd(pname text)
+  RETURNS void AS
+$BODY$
+
+-- Author : Murari Goswami
+-- Date   : 13-MAY-2015
+-- Details : Insert into Device Type Dimension table and Update to the Fact Table 
+-- Usage   : Input parameters on Device Type details.
+
+WITH ROWS AS(
+	INSERT INTO common.device_type(name) VALUES ($1)
+	RETURNING id
+	)	  
+	UPDATE connect_aws_storage.visits a SET device_type_id =(select id from ROWS)
+	WHERE device = pname;
+
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100;
+ALTER FUNCTION connect_aws_storage.dim_common_device_type_upd(text)
+  OWNER TO postgres;
+
+
+-- Function: connect_aws_storage.dim_common_operating_system_upd(text)
+
+
+-- DROP FUNCTION connect_aws_storage.dim_common_operating_system_upd(text);
+
+
+
+CREATE OR REPLACE FUNCTION connect_aws_storage.dim_common_operating_system_upd(pname text)
+  RETURNS void AS
+$BODY$
+
+-- Author : Murari Goswami
+-- Date   : 13-MAY-2015
+-- Details : Insert into Operating System Dimension table and Update to the Fact Table 
+-- Usage   : Input parameters on OS details.
+
+WITH ROWS AS(
+	INSERT INTO common.operating_system(name) VALUES ($1)
+	RETURNING id
+	)	  
+	UPDATE connect_aws_storage.visits a SET operating_system_id =(select id from ROWS)
+	WHERE device = pname;
+	
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100;
+ALTER FUNCTION connect_aws_storage.dim_common_operating_system_upd(text)
+  OWNER TO postgres;
+
+
+-- Function: connect_aws_storage.dim_domain_ins(bigint, text, text)
+
+
+-- DROP FUNCTION connect_aws_storage.dim_domain_ins(bigint, text, text);
+
+
+
+CREATE OR REPLACE FUNCTION connect_aws_storage.dim_domain_ins(
+    pid bigint,
+    pname text,
+    pdomainname text)
+  RETURNS void AS
+$BODY$
+
+-- Author : Murari Goswami
+-- Date   : 13-MAY-2015
+-- Details : Insert into Domain Dimension table and Update to the Fact Table 
+-- Usage   : Input parameters on Domain details.
+
+DECLARE
+	m_id integer;
+BEGIN  
+     WITH ROWS AS(
+	INSERT INTO base.domain(country_id,name,entry_by,last_modified_date,last_modified_by,marketing_entity_id)
+	VALUES (pid,pname,'TRNSFORM',CURRENT_TIMESTAMP, 'M2',0) 
+	RETURNING id
+	)	  
+	UPDATE connect_aws_storage.visits a SET domain_id=(select id from ROWS)
+	WHERE SUBSTRING(SUBSTRING(a.landing_url FROM '.*://([^/]*).*'),'[[:alnum:]]*$') = pdomainname;
+     
+END;	       
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+ALTER FUNCTION connect_aws_storage.dim_domain_ins(bigint, text, text)
+  OWNER TO postgres;
+
+
+-- Function: connect_aws_storage.transform(date, date)
+
+-- DROP FUNCTION connect_aws_storage.transform(date, date);
+
+CREATE OR REPLACE FUNCTION connect_aws_storage.transform(
+    from_data date,
+    until_date date)
+  RETURNS void AS
+$BODY$
+
+
+-- Author : Murari Goswami
+-- Date   : 13-MAY-2015
+-- Details : Main Transformation Function. All moduler procedure function will be called from this main function
+-- Usage   : Two input parameters on selection of date.
+
+DECLARE
+    var_match RECORD;
+    var_match2 RECORD;
+    var_match3 RECORD;  
+    yorn integer:=null;	
+BEGIN
+    FOR var_match IN select a.domain_name,b.id,b.name FROM
+			(select DISTINCT SUBSTRING(SUBSTRING(landing_url FROM '.*://([^/]*).*'),'[[:alnum:]]*$') as domain_name
+			from connect_aws_storage.visits
+			where date >= $1 and date <= $2) a, common.country  b
+			WHERE UPPER(a.domain_name)=UPPER(b.iso)
+			AND NOT EXISTS (SELECT 1 from base.domain bd 
+					WHERE UPPER(bd.name) = UPPER(b.name))						
+    LOOP
+	PERFORM connect_aws_storage.dim_domain_ins(var_match.id,var_match.name,var_match.domain_name);  
+    END LOOP;
+	
+    FOR var_match2 IN select * from(
+			select distinct device 
+			from connect_aws_storage.visits a 
+			where date >=$1 and date <= $2
+			)a
+			where not exists (select name from common.device_type b where a.device=b.name)
+    LOOP
+       PERFORM connect_aws_storage.dim_common_device_type_upd(var_match2.device);
+    END LOOP;  
+	
+    FOR var_match3 IN select * from(
+			select distinct operating_system 
+			from connect_aws_storage.visits a 
+			where date >=$1 and date <= $2
+			and operating_system is not null
+			)a
+			where not exists (select name from common.operating_system b where a.operating_system=b.name)
+    LOOP
+       PERFORM connect_aws_storage.dim_common_operating_system_upd(var_match3.operating_system );
+    END LOOP;
+     
+   
+END;	
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+ALTER FUNCTION connect_aws_storage.transform(date, date)
+  OWNER TO postgres;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
